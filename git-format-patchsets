@@ -1,0 +1,141 @@
+#!/bin/bash
+set -e
+
+
+GIT_OPTS="${GIT_OPTS:-""}"
+
+revs=""
+git_dir="$(git rev-parse --show-toplevel)/.git"
+editor=${EDITOR:-vim}
+
+
+function usage() {
+    echo "git format-patchsets <revision range>"
+}
+
+while (( "$#" )); do
+    case ${1} in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            revs="${1}"
+            ;;
+    esac
+
+    shift
+done
+
+if [[ ! "${revs}" == *".."* ]]; then
+    revs="${revs}.."
+fi
+
+
+# prepare instruction-file
+git log --reverse --oneline --no-merges "${revs}" > "${git_dir}/TMP_MULTIPATCH"
+sed -i -e 's/^/pick /' "${git_dir}/TMP_MULTIPATCH"
+
+cat >> "${git_dir}/TMP_MULTIPATCH" <<End-of-message
+
+# Format patchsets in range ${revs}
+#
+# Commands:
+# s, set <name> = introduce new patchset
+# p, pick <commit> = use commit
+#
+# These lines can be re-ordered; they are executed from top to bottom.
+# However, note that reordering may create conflicts when applying the created
+# patches. Prefer creating sets in the original order or rebasing if a
+# different order is desired.
+#
+End-of-message
+
+${editor} "${git_dir}/TMP_MULTIPATCH"
+
+
+# parse instruction-file into dictionary
+declare -A patchsets
+
+set="a"
+n_set=1
+n_commit=0
+
+while read -r p || [[ -n $p ]]; do
+
+    # skip empty lines
+    if [ -z "$p" ]; then
+        continue
+    fi
+
+    # skip full-line comments
+    if [[ "$p" == \#* ]]; then
+        continue
+    fi
+
+    # split away right-hand-side comment
+    IFS="#" read -r -a line <<< "${p}"
+
+    # split line into tokens
+    IFS=" " read -r -a line <<< "${line[0]}"
+
+    # each line must have at least two tokens (command, argument)
+    if [ ${#line[@]} -lt 2 ]; then
+        echo "error: invalid line"
+        exit 1
+    fi
+
+    # handle instruction
+    command="${line[0]}"
+
+    case "${command}" in
+        s|set)
+            set="${line[*]:1}"
+
+            if [[ "$n_commit" -gt 0 ]]; then
+                (( n_set+=1 ))
+            fi
+
+            n_commit=0
+            ;;
+
+        p|pick)
+            key=$(printf '%04d-%s' "${n_set}" "${set}")
+            commit=${line[1]}
+            patchsets[${key}]="${patchsets[${key}]} ${commit}"
+
+            (( n_commit+=1 ))
+            ;;
+
+        *)
+            echo "invalid command: ${command}"
+            exit 1
+            ;;
+    esac
+
+done <"${git_dir}/TMP_MULTIPATCH"
+
+
+# format patches
+sets=("${!patchsets[@]}")
+IFS=$'\n' sorted=($(sort <<<"${sets[*]}")); unset IFS
+
+for set in "${sorted[@]}"; do
+    patch=$(printf '%s.patch' "${set}")
+
+    echo ""
+    echo "${patch}:"
+
+    rm -f "${patch}"
+
+    for commit in ${patchsets[$set]}; do
+        message=$(git log --format=%s -n 1 "${commit}")
+        echo "  ${commit} ${message}"
+
+        git format-patch ${GIT_OPTS} "${commit}" -1 --stdout >> "${patch}"
+    done
+done
+
+
+# final cleanup
+rm -f "${git_dir}/TMP_MULTIPATCH"
