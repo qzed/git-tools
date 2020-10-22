@@ -8,6 +8,8 @@ revs=""
 git_dir="$(git rev-parse --show-toplevel)/.git"
 editor=${EDITOR:-vim}
 
+opt_tags=""
+opt_noconfirm=""
 
 function usage() {
     echo "git format-patchsets <revision range>"
@@ -18,6 +20,12 @@ while (( "$#" )); do
         -h|--help)
             usage
             exit 0
+            ;;
+        -t|--from-tags)
+            opt_tags="yes"
+            ;;
+        -a|--no-confirm)
+            opt_noconfirm="yes"
             ;;
         *)
             revs="${1}"
@@ -33,13 +41,60 @@ fi
 
 
 # prepare instruction-file
-git log --reverse --oneline --no-merges "${revs}" > "${git_dir}/TMP_MULTIPATCH"
-sed -i -e 's/^/pick /' "${git_dir}/TMP_MULTIPATCH"
+echo "# Format patchsets in range ${revs}" > "${git_dir}/TMP_MULTIPATCH"
+
+log=$(git log --reverse --oneline --no-merges "${revs}")
+
+prev=""
+if [[ "${opt_tags}" == "yes" ]]; then
+
+    while IFS= read -r entry; do
+        read -r -a fields <<< "${entry}"
+
+        commit="${fields[0]}"
+        message=$(git log --format=%B "${commit}" -1)
+        patchset=""
+
+        while IFS= read -r line; do
+            # split away right-hand-side comment
+            IFS="#" read -r -a line <<< "${line}"
+
+            # split line into tokens
+            IFS=" " read -r -a line <<< "${line[0]}"
+
+            if [[ "${line[0]}" == "Patchset:" ]]; then
+                patchset="${line[*]:1}"
+            fi
+        done <<< "${message}"
+
+        if [ -z "${patchset}" ]; then
+            patchset="${fields[*]:1}"
+            patchset="${patchset//\:/}"
+            patchset="${patchset//\(/}"
+            patchset="${patchset//\)/}"
+            patchset="${patchset//\//-}"
+            patchset="${patchset// /-}"
+            patchset=$(echo "${patchset}" | cut -c 1-52)
+        fi
+
+        if [[ "${prev}" != "${patchset}" ]]; then
+            echo "" >> "${git_dir}/TMP_MULTIPATCH"
+            echo "set ${patchset}" >> "${git_dir}/TMP_MULTIPATCH"
+        fi
+        prev="${patchset}"
+
+        echo "pick ${entry}" >> "${git_dir}/TMP_MULTIPATCH"
+
+    done <<< "${log}"
+else
+    while IFS= read -r entry; do
+        echo "pick ${entry}" >> "${git_dir}/TMP_MULTIPATCH"
+    done <<< "${log}"
+fi
+
 
 cat >> "${git_dir}/TMP_MULTIPATCH" <<End-of-message
 
-# Format patchsets in range ${revs}
-#
 # Commands:
 # s, set <name> = introduce new patchset
 # p, pick <commit> = use commit
@@ -51,7 +106,9 @@ cat >> "${git_dir}/TMP_MULTIPATCH" <<End-of-message
 #
 End-of-message
 
-${editor} "${git_dir}/TMP_MULTIPATCH"
+if [[ "${opt_tags}" != "yes" ]] || [[ "${opt_noconfirm}" != "yes" ]]; then
+    ${editor} "${git_dir}/TMP_MULTIPATCH"
+fi
 
 
 # parse instruction-file into dictionary
