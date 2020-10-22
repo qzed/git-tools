@@ -12,7 +12,25 @@ opt_tags=""
 opt_noconfirm=""
 
 function usage() {
-    echo "git format-patchsets <revision range>"
+    echo "git format-patchset [-t|--from-tags] [-a|--no-confirm] <revision-range>"
+    echo ""
+    echo "Description:"
+    echo "  Format multi-patches, i.e. patch files with multiple complete commits"
+    echo "  inside, from a given commit range. Commits can be assigned to/picked"
+    echo "  for patch-sets interactively (similar to git rebase), or via a"
+    echo ""
+    echo "      Patchset: <name>"
+    echo ""
+    echo "  tag in the commit message."
+    echo ""
+    echo "Options:"
+    echo "  -t --from-tags   Look for 'Patchset:' tags in commit messages and"
+    echo "                   assign patch-set based on this. Commits without a"
+    echo "                   'Patchset:' tag will be formatted in their own file."
+    echo ""
+    echo "  -a --no-confirm  Do not open editor for interactive assignment, i.e."
+    echo "                   perform assignment automatically without user"
+    echo "                   interaction. Only valid with -t/--from-tags."
 }
 
 while (( "$#" )); do
