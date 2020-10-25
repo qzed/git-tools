@@ -141,6 +141,7 @@ if [[ "${opt_tags}" == y ]]; then
             patchset="${patchset//\:/}"
             patchset="${patchset//\(/}"
             patchset="${patchset//\)/}"
+            patchset="${patchset//\*/}"
             patchset="${patchset//\//-}"
             patchset="${patchset// /-}"
             patchset=$(echo "${patchset}" | cut -c 1-52)
