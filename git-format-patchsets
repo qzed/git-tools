@@ -32,16 +32,10 @@ Options:
 EOD
 
 
-GIT_OPTS="${GIT_OPTS:-""}"
-
-revs=""
-git_dir="$(git rev-parse --show-toplevel)/.git"
-editor=${EDITOR:-vim}
-
 opt_help=n
 opt_tags=n
 opt_noconfirm=n
-
+opt_positionals=()
 
 while (( "${#}" )); do
     case ${1} in
@@ -58,7 +52,7 @@ while (( "${#}" )); do
             shift
             ;;
         *)
-            revs="${1}"
+            opt_positionals+=("${1}")
             shift
             ;;
     esac
@@ -70,16 +64,29 @@ if [[ "${opt_help}" == y ]]; then
     exit 0
 fi
 
-# fix revision input
-if [[ ! "${revs}" == *".."* ]]; then
-    revs="${revs}.."
+# check positional arguments
+if [[ "${#opt_positionals[@]}" -ne 1 ]]; then
+    echo "error: Invalid arguments"
+    exit 1
+fi
+
+# get revision input
+opt_revs="${opt_positionals[0]}"
+if [[ ! "${opt_revs}" == *".."* ]]; then
+    opt_revs="${opt_revs}.."
 fi
 
 
-# prepare instruction-file
-echo "# Format patchsets in range ${revs}" > "${git_dir}/TMP_MULTIPATCH"
+GIT_OPTS="${GIT_OPTS:-""}"
 
-log=$(git log --reverse --oneline --no-merges "${revs}")
+git_dir="$(git rev-parse --show-toplevel)/.git"
+editor=${EDITOR:-vim}
+
+
+# prepare instruction-file
+echo "# Format patchsets in range ${opt_revs}" > "${git_dir}/TMP_MULTIPATCH"
+
+log=$(git log --reverse --oneline --no-merges "${opt_revs}")
 
 prev=""
 if [[ "${opt_tags}" == y ]]; then
