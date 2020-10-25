@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -u
 
 
 GIT_OPTS="${GIT_OPTS:-""}"
@@ -77,11 +78,24 @@ if [[ "${opt_tags}" == y ]]; then
             # split away right-hand-side comment
             IFS="#" read -r -a line <<< "${line}"
 
-            # split line into tokens
-            IFS=" " read -r -a line <<< "${line[0]}"
+            if [[ "${#line[@]}" -eq 0 ]]
+            then
+                continue
+            fi
 
-            if [[ "${line[0]}" == "Patchset:" ]]; then
-                patchset="${line[*]:1}"
+            text="${line[0]}"
+
+            # split line into tokens
+            IFS=" " read -r -a tokens <<< "${text}"
+
+            if [[ "${#tokens[@]}" -eq 0 ]]
+            then
+                continue
+            fi
+
+            # if tag, set patchset
+            if [[ "${tokens[0]}" == "Patchset:" ]]; then
+                patchset="${tokens[*]:1}"
             fi
         done <<< "${message}"
 
@@ -177,7 +191,14 @@ while read -r p || [[ -n $p ]]; do
         p|pick)
             key=$(printf '%04d-%s' "${n_set}" "${set}")
             commit=${line[1]}
-            patchsets[${key}]="${patchsets[${key}]} ${commit}"
+
+            if [[ ${patchsets[${key}]+x} ]]
+            then
+                patchsets[${key}]="${patchsets[${key}]} ${commit}"
+            else
+                patchsets[${key}]="${commit}"
+
+            fi
 
             (( n_commit+=1 ))
             ;;
