@@ -88,13 +88,15 @@ if [[ ! "${opt_revs}" == *".."* ]]; then
     opt_revs="${opt_revs}.."
 fi
 
-
+# instruction file
 git_dir="$(git rev-parse --show-toplevel)/.git"
+cmdfile="${git_dir}/TMP_MULTIPATCH"
+
+# editor for instruction file
 editor=${EDITOR:-vim}
 
-
 # prepare instruction-file
-echo "# Format patchsets in range ${opt_revs}" > "${git_dir}/TMP_MULTIPATCH"
+echo "# Format patchsets in range ${opt_revs}" > "${cmdfile}"
 
 log=$(git log --reverse --oneline --no-merges "${opt_revs}")
 
@@ -144,22 +146,22 @@ if [[ "${opt_tags}" == y ]]; then
         fi
 
         if [[ "${prev}" != "${patchset}" ]]; then
-            echo "" >> "${git_dir}/TMP_MULTIPATCH"
-            echo "set ${patchset}" >> "${git_dir}/TMP_MULTIPATCH"
+            echo "" >> "${cmdfile}"
+            echo "set ${patchset}" >> "${cmdfile}"
         fi
         prev="${patchset}"
 
-        echo "pick ${entry}" >> "${git_dir}/TMP_MULTIPATCH"
+        echo "pick ${entry}" >> "${cmdfile}"
 
     done <<< "${log}"
 else
     while IFS= read -r entry; do
-        echo "pick ${entry}" >> "${git_dir}/TMP_MULTIPATCH"
+        echo "pick ${entry}" >> "${cmdfile}"
     done <<< "${log}"
 fi
 
 
-cat >> "${git_dir}/TMP_MULTIPATCH" <<End-of-message
+cat >> "${cmdfile}" <<End-of-message
 
 # Commands:
 # s, set <name> = introduce new patchset
@@ -173,7 +175,7 @@ cat >> "${git_dir}/TMP_MULTIPATCH" <<End-of-message
 End-of-message
 
 if [[ "${opt_tags}" != y ]] || [[ "${opt_noconfirm}" != y ]]; then
-    ${editor} "${git_dir}/TMP_MULTIPATCH"
+    ${editor} "${cmdfile}"
 fi
 
 
@@ -243,7 +245,7 @@ while read -r p || [[ -n $p ]]; do
             ;;
     esac
 
-done <"${git_dir}/TMP_MULTIPATCH"
+done <"${cmdfile}"
 
 
 # format patches
@@ -268,4 +270,4 @@ done
 
 
 # final cleanup
-rm -f "${git_dir}/TMP_MULTIPATCH"
+rm -f "${cmdfile}"
