@@ -8,8 +8,8 @@ revs=""
 git_dir="$(git rev-parse --show-toplevel)/.git"
 editor=${EDITOR:-vim}
 
-opt_tags=""
-opt_noconfirm=""
+opt_tags=n
+opt_noconfirm=n
 
 function usage() {
     echo "git format-patchset [-t|--from-tags] [-a|--no-confirm] <revision-range>"
@@ -33,17 +33,17 @@ function usage() {
     echo "                   interaction. Only valid with -t/--from-tags."
 }
 
-while (( "$#" )); do
+while (( "${#}" )); do
     case ${1} in
         -h|--help)
             usage
             exit 0
             ;;
         -t|--from-tags)
-            opt_tags="yes"
+            opt_tags=y
             ;;
         -a|--no-confirm)
-            opt_noconfirm="yes"
+            opt_noconfirm=y
             ;;
         *)
             revs="${1}"
@@ -64,7 +64,7 @@ echo "# Format patchsets in range ${revs}" > "${git_dir}/TMP_MULTIPATCH"
 log=$(git log --reverse --oneline --no-merges "${revs}")
 
 prev=""
-if [[ "${opt_tags}" == "yes" ]]; then
+if [[ "${opt_tags}" == y ]]; then
 
     while IFS= read -r entry; do
         read -r -a fields <<< "${entry}"
@@ -124,7 +124,7 @@ cat >> "${git_dir}/TMP_MULTIPATCH" <<End-of-message
 #
 End-of-message
 
-if [[ "${opt_tags}" != "yes" ]] || [[ "${opt_noconfirm}" != "yes" ]]; then
+if [[ "${opt_tags}" != y ]] || [[ "${opt_noconfirm}" != y ]]; then
     ${editor} "${git_dir}/TMP_MULTIPATCH"
 fi
 
