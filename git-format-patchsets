@@ -97,12 +97,12 @@ editor=${EDITOR:-vim}
 
 # prepare instruction-file
 echo "# Format patchsets in range ${opt_revs}" > "${cmdfile}"
-
 log=$(git log --reverse --oneline --no-merges "${opt_revs}")
 
-prev=""
 if [[ "${opt_tags}" == y ]]; then
+    prev=""
 
+    # try to get tags from log
     while IFS= read -r entry; do
         read -r -a fields <<< "${entry}"
 
@@ -135,6 +135,7 @@ if [[ "${opt_tags}" == y ]]; then
             fi
         done <<< "${message}"
 
+        # if no tag available, generate set-name from commit title
         if [ -z "${patchset}" ]; then
             patchset="${fields[*]:1}"
             patchset="${patchset//\:/}"
@@ -154,13 +155,15 @@ if [[ "${opt_tags}" == y ]]; then
         echo "pick ${entry}" >> "${cmdfile}"
 
     done <<< "${log}"
+
 else
+    # don't look at tags, just add all commits without sets
     while IFS= read -r entry; do
         echo "pick ${entry}" >> "${cmdfile}"
     done <<< "${log}"
 fi
 
-
+# add help text to instruction file
 cat >> "${cmdfile}" <<End-of-message
 
 # Commands:
@@ -177,7 +180,6 @@ End-of-message
 if [[ "${opt_tags}" != y ]] || [[ "${opt_noconfirm}" != y ]]; then
     ${editor} "${cmdfile}"
 fi
-
 
 # parse instruction-file into dictionary
 declare -A patchsets
@@ -247,27 +249,25 @@ while read -r p || [[ -n $p ]]; do
 
 done <"${cmdfile}"
 
-
 # format patches
 sets=("${!patchsets[@]}")
 IFS=$'\n' sorted=($(sort <<<"${sets[*]}")); unset IFS
 
 for set in "${sorted[@]}"; do
-    patch=$(printf '%s.patch' "${set}")
+    patch="${set}.patch"
 
     echo ""
     echo "${patch}:"
 
     rm -f "${patch}"
 
-    for commit in ${patchsets[$set]}; do
+    for commit in ${patchsets[${set}]}; do
         message=$(git log --format=%s -n 1 "${commit}")
         echo "  ${commit} ${message}"
 
         git format-patch "${opt_gitargs[@]}" "${commit}" -1 --stdout >> "${patch}"
     done
 done
-
 
 # final cleanup
 rm -f "${cmdfile}"
