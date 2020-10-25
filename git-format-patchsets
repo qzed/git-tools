@@ -47,19 +47,21 @@ while (( "${#}" )); do
     case ${1} in
         -h|--help)
             opt_help=y
+            shift
             ;;
         -t|--from-tags)
             opt_tags=y
+            shift
             ;;
         -a|--no-confirm)
             opt_noconfirm=y
+            shift
             ;;
         *)
             revs="${1}"
+            shift
             ;;
     esac
-
-    shift
 done
 
 # handle help
