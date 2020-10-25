@@ -10,7 +10,7 @@ read -r -d '' cli_help <<EOD || :
 Format multi-patches from commits.
 
 Usage:
-    ${scriptname} [OPTIONS] <revision-range>
+    ${scriptname} [OPTIONS] <revision-range> [-- <GIT_ARGS...>]
 
 Description:"
     Format multi-patches, i.e. patch files with multiple complete commits
@@ -22,19 +22,24 @@ Description:"
     tag in the commit message.
 
 Options:
-    -h, --help        Show this help message.
-    -t, --from-tags   Look for 'Patchset:' tags in commit messages and
-                      assign patch-set based on this. Commits without a
-                      'Patchset:' tag will be formatted in their own file.
-    -a, --no-confirm  Do not open editor for interactive assignment, i.e.
-                      perform assignment automatically without user
-                      interaction. Only valid with -t/--from-tags.
+    -h, --help          Show this help message.
+    -t, --from-tags     Look for 'Patchset:' tags in commit messages and
+                        assign patch-set based on this. Commits without a
+                        'Patchset:' tag will be formatted in their own file.
+    -a, --no-confirm    Do not open editor for interactive assignment, i.e.
+                        perform assignment automatically without user
+                        interaction. Only valid with -t/--from-tags.
+
+Arguments:
+    revision-range      Range from which to create multi-patches.
+    GIT_ARGS            Arguments forwarded to 'git format-patch'.
 EOD
 
 
 opt_help=n
 opt_tags=n
 opt_noconfirm=n
+opt_gitargs=()
 opt_positionals=()
 
 while (( "${#}" )); do
@@ -50,6 +55,13 @@ while (( "${#}" )); do
         -a|--no-confirm)
             opt_noconfirm=y
             shift
+            ;;
+        --)
+            shift
+            while (( "${#}" )); do
+                opt_gitargs+=("${1}")
+                shift
+            done
             ;;
         *)
             opt_positionals+=("${1}")
@@ -76,8 +88,6 @@ if [[ ! "${opt_revs}" == *".."* ]]; then
     opt_revs="${opt_revs}.."
 fi
 
-
-GIT_OPTS="${GIT_OPTS:-""}"
 
 git_dir="$(git rev-parse --show-toplevel)/.git"
 editor=${EDITOR:-vim}
@@ -252,7 +262,7 @@ for set in "${sorted[@]}"; do
         message=$(git log --format=%s -n 1 "${commit}")
         echo "  ${commit} ${message}"
 
-        git format-patch ${GIT_OPTS} "${commit}" -1 --stdout >> "${patch}"
+        git format-patch "${opt_gitargs[@]}" "${commit}" -1 --stdout >> "${patch}"
     done
 done
 
